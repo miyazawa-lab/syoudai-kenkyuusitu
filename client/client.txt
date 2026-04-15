@@ -1,0 +1,110 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <arpa/inet.h>
+
+#define BUFFER_SIZE 1024
+
+
+
+void *receive_messages(void *arg) {
+    int sock = *(int *)arg;
+    char buffer[BUFFER_SIZE];
+
+    while (1) {
+        int len = read(sock, buffer, sizeof(buffer)-1);
+        if (len <= 0) {
+            printf("サーバーとの接続が切れました。\n");
+            exit(0);
+        }
+        buffer[len] = '\0';
+        printf("\n%s", buffer);
+        fflush(stdout);
+    }
+    return NULL;
+}
+
+int main() {
+    int sock;
+    struct sockaddr_in server_addr;
+    char buffer[BUFFER_SIZE];
+    char name[50];
+    char password[50];
+    char talk[50];
+
+    // ソケット作成
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) { perror("socket"); exit(1); }
+
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(12346);
+    server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+
+    if (connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        perror("connect"); exit(1);
+    }
+    int len ;
+
+    // --- 登録 or ログイン ---
+    // len = safe_read(sock, buffer, sizeof(buffer)-1);
+    // buffer[len] = '\0';
+    // printf("%s", buffer);  // 1:登録 2:ログイン
+    fprintf(stdout,"1:登録 2:ログイン\n");
+    fgets(buffer, sizeof(buffer), stdin);
+    buffer[strcspn(buffer, "\n")] = '\0';
+    write(sock, buffer, strlen(buffer));
+
+    // 名前とパスワード入力
+    // len = safe_read(sock, buffer, sizeof(buffer)-1);
+    // buffer[len] = '\0';
+    // printf("%s", buffer);  // 名前入力
+    fprintf(stdout,"名前を入力\n");
+    fgets(name, sizeof(name), stdin);
+    name[strcspn(name, "\n")] = '\0';
+    write(sock, name, strlen(name));
+
+    // len = safe_read(sock, buffer, sizeof(buffer)-1);
+    // buffer[len] = '\0';
+    // printf("%s", buffer);  // パスワード入力
+    fprintf(stdout,"パスワードを入力\n");
+    fgets(password, sizeof(password), stdin);
+    password[strcspn(password, "\n")] = '\0';
+    write(sock, password, strlen(password));
+    
+
+    // 認証結果・登録完了
+    len = read(sock, buffer, sizeof(buffer)-1);
+    buffer[len] = '\0';
+    printf("%s\n", buffer);
+
+    // 全体 or 個別トーク選択
+    // len = safe_read(sock, buffer, sizeof(buffer)-1);
+    // buffer[len] = '\0';
+    // printf("%s", buffer);//トーク選択
+    fprintf(stdout,"1:全体トーク 2:個別トーク\n");
+    fgets(talk, sizeof(talk), stdin);
+    talk[strcspn(talk, "\n")] = '\0';
+    write(sock, talk, strlen(talk));
+
+    
+    //トーク確定    
+    len = read(sock,buffer,sizeof(buffer) -1);
+    buffer[len]= '\0';
+    printf("%s",buffer);
+
+    // 受信スレッド開始
+    pthread_t recv_thread;
+    pthread_create(&recv_thread, NULL, receive_messages, &sock);
+
+    // メインスレッドで送信
+    while (1) {
+        fgets(buffer, sizeof(buffer), stdin);
+        buffer[strcspn(buffer, "\n")] = '\0';
+        write(sock, buffer, strlen(buffer));
+    }
+
+    close(sock);
+    return 0;
+}

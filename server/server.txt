@@ -1,0 +1,301 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <arpa/inet.h>
+#include <jansson.h>
+
+#define MAX_CLIENTS 10
+#define BUFFER_SIZE 2048
+
+typedef struct {
+    char name[50];
+    char password[50];
+} user_t;
+
+typedef struct {
+    int sock;
+    char name[50];
+} client_t;
+
+client_t clients[MAX_CLIENTS];
+int client_count = 0;
+pthread_mutex_t clients_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+user_t *users = NULL;
+int user_count = 0;
+
+// JSONファイル読み込み（安全化）
+void load_users(const char *filename) {
+    json_error_t error;
+    json_t *root = json_load_file(filename, 0, &error);
+    if (!root) {
+        // ファイルがない・読み込み失敗なら空配列を作る（初回起動時対策）
+        root = json_array();
+    }
+
+    int new_count = (int)json_array_size(root);
+    user_t *new_users = realloc(users, sizeof(user_t) * (new_count > 0 ? new_count : 0));
+    if (!new_users && new_count > 0) {
+        perror("realloc");
+        json_decref(root);
+        exit(1);
+    }
+    users = new_users;
+    user_count = new_count;
+
+    for (int i = 0; i < user_count; i++) {
+        json_t *obj = json_array_get(root, i);
+        const char *name = json_string_value(json_object_get(obj, "name"));
+        const char *password = json_string_value(json_object_get(obj, "password"));
+        if (name) {
+            strncpy(users[i].name, name, sizeof(users[i].name)-1);
+            users[i].name[sizeof(users[i].name)-1] = '\0';
+        } else {
+            users[i].name[0] = '\0';
+        }
+        if (password) {
+            strncpy(users[i].password, password, sizeof(users[i].password)-1);
+            users[i].password[sizeof(users[i].password)-1] = '\0';
+        } else {
+            users[i].password[0] = '\0';
+        }
+    }
+    json_decref(root);
+}
+
+// 安全に read して改行・復帰文字を削除し、ヌル終端する関数
+int safe_read(int sock, char *buf, int size) {
+    ssize_t r = read(sock, buf, size - 1);
+    if (r <= 0) return (int)r;
+    int len = (int)r;
+    buf[len] = '\0';
+    while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r')) {
+        buf[len - 1] = '\0';
+        len--;
+    }
+    return len;  
+}
+
+// JSONにユーザー追加
+void add_user(const char *filename, const char *name, const char *password) {
+    json_t *root;
+    json_error_t error;
+    root = json_load_file(filename, 0, &error);
+    if (!root) root = json_array();
+
+    json_t *obj = json_object();
+    json_object_set_new(obj, "name", json_string(name));
+    json_object_set_new(obj, "password", json_string(password));
+    json_array_append_new(root, obj);
+
+    json_dump_file(root, filename, JSON_INDENT(4));
+    json_decref(root);
+}
+
+// ユーザー認証
+int authenticate(const char *name, const char *password) {
+    for (int i = 0; i < user_count; i++) {
+        if (strcmp(users[i].name, name) == 0 &&
+            strcmp(users[i].password, password) == 0)
+            return 1;
+    }
+    return 0;
+}
+
+// 他のクライアントに送信
+void broadcast_message(char *message, int sender_sock) {
+    pthread_mutex_lock(&clients_mutex);
+    for (int i = 0; i < client_count; i++) {
+        if (clients[i].sock != sender_sock)
+            write(clients[i].sock, message, strlen(message));
+    }
+    pthread_mutex_unlock(&clients_mutex);
+}
+
+// 個別送信
+int send_private_message(const char *target_name, const char *message) {
+    pthread_mutex_lock(&clients_mutex);
+    int found = 0;
+    for (int i = 0; i < client_count; i++) {
+        if (strcmp(clients[i].name, target_name) == 0) {
+            write(clients[i].sock, message, strlen(message));
+            found = 1;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&clients_mutex);
+    return found;
+}
+
+// クライアント処理
+void *handle_client(void *arg) {
+    client_t *cli = (client_t *)arg;
+    char buffer[BUFFER_SIZE];
+    int len;
+
+    // --- 登録 or ログイン ---
+    // write(cli->sock, "1:登録 2:ログイン\n", strlen("1:登録 2:ログイン\n"));
+    len = safe_read(cli->sock, buffer, sizeof(buffer));
+    if (len <= 0) { close(cli->sock); return NULL; }
+
+    if (buffer[0] == '1') {  // 登録
+        // write(cli->sock, "名前を入力\n", strlen("名前を入力\n"));
+        len = safe_read(cli->sock, buffer, sizeof(buffer));
+        if (len <= 0) { close(cli->sock); return NULL; }
+        char name[50]; strncpy(name, buffer, sizeof(name)-1); name[sizeof(name)-1] = '\0';
+
+        // write(cli->sock, "パスワードを入力\n", strlen("パスワードを入力\n"));
+        len = safe_read(cli->sock, buffer, sizeof(buffer));
+        if (len <= 0) { close(cli->sock); return NULL; }
+        char password[50]; strncpy(password, buffer, sizeof(password)-1); password[sizeof(password)-1] = '\0';
+
+        add_user("users.json", name, password);
+
+        // 登録直後にメモリ上の users を最新化する（必要なら）
+        load_users("users.json");
+
+        strncpy(cli->name, name, sizeof(cli->name)-1);
+        cli->name[sizeof(cli->name)-1] = '\0';
+        write(cli->sock, "登録完了!\n", strlen("登録完了!\n"));
+    } else {  // ログイン
+        int auth_ok = 0;
+        while (!auth_ok) {
+            // write(cli->sock, "名前を入力:\n", strlen("名前を入力:\n"));
+            len = safe_read(cli->sock, buffer, sizeof(buffer));
+            if (len <= 0) { close(cli->sock); return NULL; }
+            char name[50]; strncpy(name, buffer, sizeof(name)-1); name[sizeof(name)-1] = '\0';
+
+            // write(cli->sock, "パスワードを入力:\n", strlen("パスワードを入力:\n"));
+            len = safe_read(cli->sock, buffer, sizeof(buffer));
+            if (len <= 0) { close(cli->sock); return NULL; }
+            char password[50]; strncpy(password, buffer, sizeof(password)-1); password[sizeof(password)-1] = '\0';
+
+            // 認証前に必ず最新の users を読み込む（必要なら）
+            load_users("users.json");
+
+            if (authenticate(name, password)) {
+                strncpy(cli->name, name, sizeof(cli->name)-1);
+                cli->name[sizeof(cli->name)-1] = '\0';
+                auth_ok = 1;
+                write(cli->sock, "ログイン成功!\n", strlen("ログイン成功!\n"));
+            } else {
+                write(cli->sock, "認証失敗、再入力\n",strlen("認証失敗、再入力\n"));
+            }
+        }
+    }
+
+    // --- 全体 or 個別チャット選択 ---
+    // write(cli->sock, "1:全体トーク 2:個別トーク\n", strlen("1:全体トーク 2:個別トーク\n"));
+    // 全体トーク/個別トークを確実に読む
+    len = safe_read(cli->sock, buffer, sizeof(buffer));
+    if (len <= 0) { close(cli->sock); return NULL; }       
+
+    // 個別トークは /whisper <名前> <メッセージ> を使用
+    if(buffer[0] == '1'){
+        write(cli->sock, "全体トークを開始\n", strlen("全体トークを開始\n"));
+    }else{
+        write(cli->sock,"個別トークを開始\n",strlen("個別トークを開始\n"));
+    }
+
+    // 入室メッセージ
+    char welcome[BUFFER_SIZE];
+    snprintf(welcome, sizeof(welcome), "[サーバー] %s が入室しました\n", cli->name);
+    printf("%s", welcome);
+    fflush(stdout);
+    broadcast_message(welcome, cli->sock);
+
+    // --- メッセージ受信ループ ---
+    while (1) {
+        len = safe_read(cli->sock, buffer, sizeof(buffer));
+        if (len <= 0) {
+            snprintf(welcome, sizeof(welcome), "[サーバー] %s が退室しました\n", cli->name);
+            printf("%s", welcome); fflush(stdout);
+            broadcast_message(welcome, cli->sock);
+            close(cli->sock);
+
+            pthread_mutex_lock(&clients_mutex);
+            for (int i = 0; i < client_count; i++) {
+                if (clients[i].sock == cli->sock) {
+                    for (int j = i; j < client_count-1; j++)
+                        clients[j] = clients[j+1];
+                    client_count--;
+                    break;
+                }
+            }
+            pthread_mutex_unlock(&clients_mutex);
+            break;
+        }
+
+        // DM判定
+        if (strncmp(buffer, "/whisper ", 9) == 0) {
+            char target[50], msg_body[BUFFER_SIZE];
+            if (sscanf(buffer+9, "%s %[^\n]", target, msg_body) == 2) {
+                char msg[BUFFER_SIZE];
+                snprintf(msg, sizeof(msg), "[%s->%s] %s\n", cli->name, target, msg_body);
+                if (!send_private_message(target, msg)) {
+                    char err[] = "[サーバー] ユーザーが見つかりません\n";
+                    write(cli->sock, err, strlen(err));
+                }
+            }
+            continue;
+        }
+
+        // 全体チャット
+        char message[BUFFER_SIZE];
+        snprintf(message, sizeof(message), "[%s] %s\n", cli->name, buffer);
+        broadcast_message(message, cli->sock);
+    }
+
+    return NULL;
+}
+
+int main() {
+    int server_fd, client_fd;
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t addr_len = sizeof(client_addr);
+
+    // JSONロード
+    load_users("users.json");
+
+    // ソケット作成
+    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd < 0) { perror("socket"); exit(1); }
+
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(12346);
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        perror("bind"); exit(1);
+    }
+
+    if (listen(server_fd, 5) < 0) { perror("listen"); exit(1); }
+    printf("サーバー起動、接続待機中...\n");
+
+    while (1) {
+        client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &addr_len);
+        if (client_fd < 0) { perror("accept"); continue; }
+
+        pthread_mutex_lock(&clients_mutex);
+        if (client_count >= MAX_CLIENTS) {
+            printf("接続拒否: 最大クライアント数です\n");
+            close(client_fd);
+            pthread_mutex_unlock(&clients_mutex);
+            continue;
+        }
+
+        client_t *cli = &clients[client_count++];
+        cli->sock = client_fd;
+        cli->name[0] = '\0';
+        pthread_mutex_unlock(&clients_mutex);
+
+        pthread_t tid;
+        pthread_create(&tid, NULL, handle_client, cli);
+        pthread_detach(tid);
+    }
+
+    close(server_fd);
+    return 0;
+}
