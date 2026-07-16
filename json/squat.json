@@ -1,0 +1,17 @@
+{
+    "exercise": "squat",
+
+    "angles": {
+        "left_knee": 90,
+        "right_knee": 90,
+        "left_hip": 90,
+        "right_hip": 90
+    },
+
+    "feedback": {
+        "left_knee": "左の膝をもう少し曲げてください",
+        "right_knee": "右の膝をもう少し曲げてください",
+        "left_hip": "左の腰をもう少し下げてください",
+        "right_hip": "右の腰をもう少し下げてください"
+    }
+}

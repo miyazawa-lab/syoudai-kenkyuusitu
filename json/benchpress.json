@@ -1,0 +1,17 @@
+{
+    "exercise": "benchpress",
+
+    "angles": {
+        "left_elbow": 90,
+        "right_elbow": 90,
+        "left_shoulder": 80,
+        "right_shoulder": 80
+    },
+
+    "feedback": {
+        "left_elbow": "肘をもう少し曲げてください",
+        "right_elbow": "右肘をもう少し曲げてください",
+        "left_shoulder": "肩の左の位置を安定させてください",
+        "right_shoulder": "肩の右の位置を安定させてください"
+    }
+}
