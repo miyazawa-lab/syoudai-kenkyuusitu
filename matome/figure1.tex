@@ -1,0 +1,27 @@
+\documentclass[dvipdfmx]{standalone}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
+\begin{document}
+\begin{tikzpicture}[
+  node distance=5mm and 8mm,
+  box/.style={draw, rounded corners=2pt, align=center, minimum width=42mm, minimum height=9mm, font=\small},
+  cfg/.style={draw, rounded corners=2pt, align=left, minimum width=45mm, minimum height=18mm, font=\small},
+  arr/.style={-{Latex[length=2mm]}, thick}
+]
+\node[box] (cam) {カメラ映像};
+\node[box, below=of cam] (pose) {姿勢推定\\ランドマーク};
+\node[box, below=of pose] (points) {共通処理\\設定から評価対象の3点を取得};
+\node[box, below=of points] (feat) {共通処理\\3点から特徴量（角度）を計算};
+\node[box, below=of feat] (judge) {共通処理\\基準値・許容範囲・比較条件で判定};
+\node[box, below=of judge] (out) {評価結果\\表示・フィードバック};
+\node[cfg, right=of feat] (config) {種目別設定\\関節指定\\基準値・許容範囲\\比較条件};
+\draw[arr] (cam) -- (pose);
+\draw[arr] (pose) -- (points);
+\draw[arr] (points) -- (feat);
+\draw[arr] (feat) -- (judge);
+\draw[arr] (judge) -- (out);
+\draw[arr] (config.west) -| (points.east);
+\draw[arr] (config.west) -| (feat.east);
+\draw[arr] (config.west) -| (judge.east);
+\end{tikzpicture}
+\end{document}
