@@ -1,0 +1,36 @@
+{
+  "exercise": "pushup",
+  "tolerance": 10,
+  "angles": [
+    {
+      "name": "left_elbow",
+      "target": 90,
+      "points": [
+        "LEFT_SHOULDER",
+        "LEFT_ELBOW",
+        "LEFT_WRIST"
+      ],
+      "feedback": "左肘の角度を調整してください"
+    },
+    {
+      "name": "right_elbow",
+      "target": 90,
+      "points": [
+        "RIGHT_SHOULDER",
+        "RIGHT_ELBOW",
+        "RIGHT_WRIST"
+      ],
+      "feedback": "右肘の角度を調整してください"
+    },
+    {
+      "name": "body_alignment",
+      "target": 180,
+      "points": [
+        "LEFT_SHOULDER",
+        "LEFT_HIP",
+        "LEFT_ANKLE"
+      ],
+      "feedback": "身体が一直線になるように調整してください"
+    }
+  ]
+}

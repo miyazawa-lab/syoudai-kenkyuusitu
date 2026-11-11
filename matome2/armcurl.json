@@ -1,0 +1,26 @@
+{
+  "exercise": "armcurl",
+  "tolerance": 10,
+  "angles": [
+    {
+      "name": "left_elbow",
+      "target": 60,
+      "points": [
+        "LEFT_SHOULDER",
+        "LEFT_ELBOW",
+        "LEFT_WRIST"
+      ],
+      "feedback": "左肘の角度を調整してください"
+    },
+    {
+      "name": "right_elbow",
+      "target": 60,
+      "points": [
+        "RIGHT_SHOULDER",
+        "RIGHT_ELBOW",
+        "RIGHT_WRIST"
+      ],
+      "feedback": "右肘の角度を調整してください"
+    }
+  ]
+}

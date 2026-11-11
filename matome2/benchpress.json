@@ -1,0 +1,49 @@
+{
+  "exercise": "benchpress",
+  "tolerance": 10,
+  "angles": [
+    {
+      "name": "left_elbow",
+      "target": 90,
+      "feedback": "肘をもう少し曲げてください",
+      "points": [
+        "LEFT_SHOULDER",
+        "LEFT_ELBOW",
+        "LEFT_WRIST"
+      ]
+    },
+    {
+      "name": "right_elbow",
+      "target": 90,
+      "feedback": "右肘をもう少し曲げてください",
+      "points": [
+        "RIGHT_SHOULDER",
+        "RIGHT_ELBOW",
+        "RIGHT_WRIST"
+      ]
+    },
+    {
+      "name": "left_shoulder",
+      "target": 80,
+      "feedback": "肩の左の位置を安定させてください",
+      "points": [
+        "LEFT_ELBOW",
+        "LEFT_SHOULDER",
+        "LEFT_HIP"
+      ]
+    },
+    {
+      "name": "right_shoulder",
+      "target": 80,
+      "feedback": "肩の右の位置を安定させてください",
+      "points": [
+        "RIGHT_ELBOW",
+        "RIGHT_SHOULDER",
+        "RIGHT_HIP"
+      ]
+    }
+  ],
+  "motion_sequence": {
+    "enabled": false
+  }
+}

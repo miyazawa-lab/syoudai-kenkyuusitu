@@ -1,0 +1,56 @@
+{
+  "exercise": "squat",
+  "tolerance": 10,
+  "angles": [
+    {
+      "name": "left_knee",
+      "target": 90,
+      "feedback": "左の膝をもう少し曲げてください",
+      "points": [
+        "LEFT_HIP",
+        "LEFT_KNEE",
+        "LEFT_ANKLE"
+      ]
+    },
+    {
+      "name": "right_knee",
+      "target": 90,
+      "feedback": "右の膝をもう少し曲げてください",
+      "points": [
+        "RIGHT_HIP",
+        "RIGHT_KNEE",
+        "RIGHT_ANKLE"
+      ]
+    },
+    {
+      "name": "left_hip",
+      "target": 90,
+      "feedback": "左の腰をもう少し下げてください",
+      "points": [
+        "LEFT_SHOULDER",
+        "LEFT_HIP",
+        "LEFT_KNEE"
+      ]
+    },
+    {
+      "name": "right_hip",
+      "target": 90,
+      "feedback": "右の腰をもう少し下げてください",
+      "points": [
+        "RIGHT_SHOULDER",
+        "RIGHT_HIP",
+        "RIGHT_KNEE"
+      ]
+    }
+  ],
+  "motion_sequence": {
+    "enabled": true,
+    "angle_names": [
+      "left_knee",
+      "right_knee"
+    ],
+    "standing_angle_min": 160,
+    "bottom_angle_max": 110,
+    "movement_delta": 3
+  }
+}
